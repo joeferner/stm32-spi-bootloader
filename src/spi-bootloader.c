@@ -51,6 +51,7 @@ void eeprom_writeOkSignature();
 void eeprom_clearOkSignature();
 bool eeprom_isSignatureOk();
 void eeprom_writeSignature(uint32_t val);
+uint32_t eeprom_readSignature();
 
 void setup() {
   deassertIrq();
@@ -130,7 +131,10 @@ void eraseProgramMemory() {
   FLASH_EraseInitTypeDef eraseInitStruct;
   uint32_t pageError;
 
-  HAL_FLASH_Unlock();
+  if (HAL_FLASH_Unlock() != HAL_OK) {
+    fail();
+    return;
+  }
 
   eraseInitStruct.TypeErase = TYPEERASE_PAGEERASE;
   eraseInitStruct.Page = APP_ADDRESS;
@@ -144,7 +148,10 @@ void eraseProgramMemory() {
     return;
   }
 
-  HAL_FLASH_Lock();
+  if (HAL_FLASH_Lock() != HAL_OK) {
+    fail();
+    return;
+  }
 }
 
 void spi_beginReceiveStartPage() {
@@ -173,7 +180,10 @@ void spi_beginReceivePage() {
 }
 
 void flashPage() {
-  HAL_FLASH_Unlock();
+  if (HAL_FLASH_Unlock() != HAL_OK) {
+    fail();
+    return;
+  }
   for (uint32_t pageOffset = 0; pageOffset < FLASH_PAGE_SIZE; pageOffset += WORD_SIZE) {
     uint32_t word = *((uint32_t*)(&buffer[pageOffset]));
     if (HAL_FLASH_Program(TYPEPROGRAM_WORD, APP_ADDRESS + pageAddr + pageOffset, word) != HAL_OK) {
@@ -182,7 +192,10 @@ void flashPage() {
     }
   }
   pageAddr += FLASH_PAGE_SIZE;
-  HAL_FLASH_Lock();
+  if (HAL_FLASH_Lock() != HAL_OK) {
+    fail();
+    return;
+  }
 }
 
 void verifyProgram() {
@@ -212,20 +225,29 @@ void eeprom_clearOkSignature() {
 }
 
 void eeprom_writeSignature(uint32_t val) {
-  HAL_FLASH_Unlock();
+  HAL_FLASHEx_DATAEEPROM_Unlock();
 
-  FLASH_Erase_Page(EEPROM_SIGNATURE_ADDRESS);
-  FLASH_WaitForLastOperation(TIMEOUT);
+  HAL_FLASHEx_DATAEEPROM_Erase(EEPROM_SIGNATURE_ADDRESS);
+  if (HAL_FLASHEx_DATAEEPROM_Program(TYPEPROGRAM_WORD, EEPROM_SIGNATURE_ADDRESS, val) != HAL_OK) {
+    fail();
+    return;
+  }
 
-  HAL_FLASH_Program(TYPEPROGRAM_WORD, EEPROM_SIGNATURE_ADDRESS, val);
-  FLASH_WaitForLastOperation(TIMEOUT);
+  HAL_FLASHEx_DATAEEPROM_Lock();
 
-  HAL_FLASH_Lock();
+  if (eeprom_readSignature() != val) {
+    fail();
+    return;
+  }
 }
 
 bool eeprom_isSignatureOk() {
-  uint32_t val = *((uint32_t*)EEPROM_SIGNATURE_ADDRESS);
+  uint32_t val = eeprom_readSignature();
   return val == EEPROM_SIGNATURE_OK;
+}
+
+uint32_t eeprom_readSignature() {
+  return *((uint32_t*)EEPROM_SIGNATURE_ADDRESS);
 }
 
 uint32_t calculateAppCodeCRC32() {
