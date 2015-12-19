@@ -138,7 +138,7 @@ void eraseProgramMemory() {
 
   eraseInitStruct.TypeErase = TYPEERASE_PAGEERASE;
   eraseInitStruct.Page = APP_ADDRESS;
-  eraseInitStruct.NbPages = flashHeader.size / FLASH_PAGE_SIZE;
+  eraseInitStruct.NbPages = (flashHeader.size / FLASH_PAGE_SIZE) + 1;
   if (HAL_FLASHEx_Erase(&eraseInitStruct, &pageError) != HAL_OK) {
     fail();
     return;
